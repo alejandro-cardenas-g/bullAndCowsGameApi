@@ -1,0 +1,5 @@
+export API_ADDR=":3000"
+
+export DB_MATCHES="localhost:6379"
+export DB_MATCHES_PWD="admin"
+export DB_MATCHES_DB=0
