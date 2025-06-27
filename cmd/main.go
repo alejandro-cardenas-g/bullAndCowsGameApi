@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"time"
 
 	"github.com/alejandro-cardenas-g/bullAndCowsApp/cmd/api"
 	"github.com/alejandro-cardenas-g/bullAndCowsApp/internal/utils"
@@ -9,12 +9,11 @@ import (
 
 func main() {
 	cfg := api.ApplicationConfig{
-		Addr: utils.GetEnvironment().GetEnv("API_ADDR", ":3000"),
+		Addr:            utils.GetEnvironment().GetEnv("API_ADDR", ":3000"),
+		GracefulTimeout: time.Second * 15,
 	}
 
 	server := api.NewApplication(cfg)
 
-	if err := server.Run(); err != nil {
-		log.Fatal(err)
-	}
+	server.Run()
 }
