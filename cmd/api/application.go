@@ -14,6 +14,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/cors"
 	"go.uber.org/zap"
 )
 
@@ -61,9 +62,9 @@ func (app *Application) Run() {
 		if err := srv.ListenAndServe(); err != nil {
 			log.Fatal(err)
 		}
-		app.logger.Info("Listening on", app.config.Addr)
 	}()
 
+	app.logger.Info("Listening on", app.config.Addr)
 	ch := make(chan os.Signal, 1)
 
 	signal.Notify(ch, os.Interrupt)
@@ -77,8 +78,9 @@ func (app *Application) Run() {
 	os.Exit(0)
 }
 
-func (app *Application) createRouter() *mux.Router {
+func (app *Application) createRouter() http.Handler {
 	router := mux.NewRouter()
+
 	subrouter := router.PathPrefix("/api/v1").Subrouter()
 
 	controller := &Controller{
@@ -95,7 +97,17 @@ func (app *Application) createRouter() *mux.Router {
 	// controllers registration
 	matchesController := newMatchesController(controller, matchesService)
 	matchesController.RegisterRoutes(subrouter)
-	return router
+
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{utils.GetEnvironment().GetEnv("ALLOWED_HOST", "")},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	})
+
+	return c.Handler(router)
 }
 
 func (app *Application) createMatchesRdb() *redis.Client {
