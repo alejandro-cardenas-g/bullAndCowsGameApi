@@ -16,6 +16,13 @@ type SetOpponentCombinationsCommand struct {
 	Combinations domain.MatchOpponentCombinations
 }
 
+type SetNewGuessCommand struct {
+	RoomId   string
+	Guesses  domain.MatchGuesses
+	IsTurnOf string
+	IsWinner bool
+}
+
 type IMatchesRepository interface {
 	CreateMatch(ctx context.Context, player domain.Player) (*domain.Match, error)
 	GetRoomPlayers(ctx context.Context, roomId string) (domain.MatchPlayers, error)
@@ -25,6 +32,10 @@ type IMatchesRepository interface {
 	GetPlayersAndCombinations(ctx context.Context, roomId string) (*domain.Match, error)
 	GetAllButGuesses(ctx context.Context, roomId string) (*domain.Match, error)
 	ChangeStatusAndTurn(ctx context.Context, roomId string, status domain.MatchStatus, isTurnOf string) error
+	GetAll(ctx context.Context, roomId string) (*domain.Match, error)
+	SetNewGuess(ctx context.Context, command SetNewGuessCommand) error
+	Exists(ctx context.Context, roomId string) error
+	Restart(ctx context.Context, roomId string) error
 }
 
 type Storage struct {

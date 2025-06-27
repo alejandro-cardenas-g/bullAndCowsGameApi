@@ -9,6 +9,13 @@ const (
 )
 
 type BullAndCowGuess struct {
-	Value rune
+	Value string
 	Type  BullAndCowType
+}
+
+func newBullAndCowGuess(value string, guessType BullAndCowType) BullAndCowGuess {
+	return BullAndCowGuess{
+		Value: value,
+		Type:  guessType,
+	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/alejandro-cardenas-g/bullAndCowsApp/contracts"
 	"github.com/alejandro-cardenas-g/bullAndCowsApp/internal/domain"
+	"github.com/alejandro-cardenas-g/bullAndCowsApp/internal/utils"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -170,7 +171,7 @@ func (r *MatchesRepository) GetAllButGuesses(ctx context.Context, roomId string)
 		return nil, err
 	}
 
-	if results[0] == nil || results[1] == nil || results[2] == nil || results[3] == nil {
+	if utils.IsSliceWithNilValues(results) {
 		return nil, domain.ErrEmptyResult
 	}
 
@@ -208,6 +209,98 @@ func (r *MatchesRepository) ChangeStatusAndTurn(ctx context.Context, roomId stri
 	}
 
 	return r.rdb.HSet(ctx, key, payload).Err()
+}
+
+func (r *MatchesRepository) GetAll(ctx context.Context, roomId string) (*domain.Match, error) {
+	key := getKeyById(roomId)
+	results, err := r.rdb.HMGet(ctx, key, "Players", "OpponentsCombinations", "Guesses", "Status", "IsTurnOf").Result()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if utils.IsSliceWithNilValues(results) {
+		return nil, domain.ErrEmptyResult
+	}
+
+	var players domain.MatchPlayers
+
+	if err := json.Unmarshal([]byte(results[0].(string)), &players); err != nil {
+		return nil, err
+	}
+
+	var combinations domain.MatchOpponentCombinations
+	if err := json.Unmarshal([]byte(results[1].(string)), &combinations); err != nil {
+		return nil, err
+	}
+
+	var guesses domain.MatchGuesses
+	if err := json.Unmarshal([]byte(results[2].(string)), &guesses); err != nil {
+		return nil, err
+	}
+
+	status := domain.MatchStatus(results[3].(string))
+
+	isTurnOf := results[4].(string)
+
+	match := &domain.Match{
+		Players:               players,
+		OpponentsCombinations: combinations,
+		Status:                status,
+		IsTurnOf:              isTurnOf,
+		Guesses:               guesses,
+	}
+
+	return match, nil
+}
+
+func (r *MatchesRepository) SetNewGuess(ctx context.Context, command contracts.SetNewGuessCommand) error {
+	key := getKeyById(command.RoomId)
+
+	guessesJSON, _ := json.Marshal(command.Guesses)
+
+	payload := map[string]interface{}{
+		"Guesses":  string(guessesJSON),
+		"IsTurnOf": command.IsTurnOf,
+	}
+
+	if command.IsWinner {
+		payload["Status"] = string(domain.MatchStateFinished)
+	}
+
+	return r.rdb.HSet(ctx, key, payload).Err()
+}
+
+func (r *MatchesRepository) Exists(ctx context.Context, roomId string) error {
+	key := getKeyById(roomId)
+	return r.rdb.Exists(ctx, key).Err()
+}
+
+func (r *MatchesRepository) Restart(ctx context.Context, roomId string) error {
+	key := getKeyById(roomId)
+
+	match := &domain.Match{
+		OpponentsCombinations: make(domain.MatchOpponentCombinations),
+		Guesses:               make(domain.MatchGuesses),
+		Status:                domain.MatchStateFullRoom,
+	}
+
+	opponentsJSON, _ := json.Marshal(match.OpponentsCombinations)
+	guessesJSON, _ := json.Marshal(match.Guesses)
+
+	payload := map[string]interface{}{
+		"OpponentsCombinations": string(opponentsJSON),
+		"Guesses":               string(guessesJSON),
+		"Status":                string(match.Status),
+	}
+
+	resErr := r.rdb.HSet(ctx, key, payload).Err()
+
+	if err := r.rdb.Expire(ctx, key, CREATE_OR_UPDATE_MATCH_EXP).Err(); err != nil {
+		return err
+	}
+
+	return resErr
 }
 
 func getKeyById(roomId string) string {

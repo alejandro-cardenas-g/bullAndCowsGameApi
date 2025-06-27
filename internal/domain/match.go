@@ -81,3 +81,46 @@ func (m *Match) GetRandomUser() (string, error) {
 	selected := values[index]
 	return selected, nil
 }
+
+func (m *Match) GetNewGuess(guess, comparedCombination string) (*GuessesHistoryItem, error) {
+	combinationMap := make(map[rune]rune)
+
+	if len(guess) != 4 || len(comparedCombination) != 4 {
+		return nil, ErrInvalidCombination
+	}
+
+	for _, item := range comparedCombination {
+		combinationMap[item] = item
+	}
+
+	historyItem := &GuessesHistoryItem{}
+
+	for i := 0; i < 4; i++ {
+		guessDigit := rune(guess[i])
+		combinationDigit := rune(comparedCombination[i])
+
+		bType := None
+
+		if guessDigit == combinationDigit {
+			bType = Bull
+		} else if _, exists := combinationMap[guessDigit]; exists {
+			bType = Cow
+		}
+
+		historyItem.Guess = append(historyItem.Guess, newBullAndCowGuess(string(guessDigit), bType))
+	}
+
+	countOfMatches := 0
+
+	for _, item := range historyItem.Guess {
+		if item.Type == Bull {
+			countOfMatches++
+		}
+	}
+
+	if countOfMatches == 4 {
+		historyItem.IsWinnerCombination = true
+	}
+
+	return historyItem, nil
+}

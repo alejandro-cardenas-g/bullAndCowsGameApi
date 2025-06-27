@@ -1,5 +1,7 @@
 package contracts
 
+import "github.com/alejandro-cardenas-g/bullAndCowsApp/internal/domain"
+
 type CreateRoomCommand struct {
 	Username string `json:"username" validate:"required"`
 }
@@ -26,4 +28,19 @@ type SetCombinationCommand struct {
 
 type SuccessResponse struct {
 	Success bool `json:"success"`
+}
+
+type StartMatchResponse struct {
+	IsTurnOf string `json:"is_turn_of"`
+}
+
+type MakeGuessCommand struct {
+	Guess    int    `json:"guess"`
+	PlayerId string `json:"player_id"`
+	RoomId   string
+}
+
+type MakeGuessResponse struct {
+	IsWinner bool                `json:"is_winner"`
+	Guesses  domain.MatchGuesses `json:"guesses"`
 }

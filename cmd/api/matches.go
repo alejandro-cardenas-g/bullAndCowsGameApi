@@ -27,6 +27,8 @@ func (uc *MatchesController) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/matches/join/{roomId}", uc.joinMatchHandler).Methods("PUT")
 	router.HandleFunc("/matches/setCombination/{roomId}", uc.setCombinationHandler).Methods("PUT")
 	router.HandleFunc("/matches/startGame/{roomId}", uc.startGameHandler).Methods("PUT")
+	router.HandleFunc("/matches/makeGuess/{roomId}", uc.makeGuessHandler).Methods("PUT")
+	router.HandleFunc("/matches/restart/{roomId}", uc.restartGameHandler).Methods("PUT")
 }
 
 func (uc *MatchesController) createMatchHandler(w http.ResponseWriter, r *http.Request) {
@@ -176,6 +178,10 @@ func (uc *MatchesController) startGameHandler(w http.ResponseWriter, r *http.Req
 			{
 				uc.NotFoundError(w, r, err)
 			}
+		case errors.Is(err, services.ErrExpectingCombinations):
+			{
+				uc.ConflictError(w, r, err)
+			}
 		default:
 			{
 				uc.InternalServerError(w, r, err)
@@ -185,6 +191,91 @@ func (uc *MatchesController) startGameHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := utils.WriteJSON(w, http.StatusAccepted, result); err != nil {
+		uc.InternalServerError(w, r, err)
+		return
+	}
+}
+
+func (uc *MatchesController) makeGuessHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomId := vars["roomId"]
+
+	if err := validateRoomId(roomId); err != nil {
+		uc.BadRequestError(w, r, err)
+		return
+	}
+
+	payload := &contracts.MakeGuessCommand{}
+	if err := utils.ParseJSON(r, payload); err != nil {
+		uc.BadRequestError(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(payload); err != nil {
+		uc.BadRequestError(w, r, err)
+		return
+	}
+
+	payload.RoomId = roomId
+
+	result, err := uc.matchesService.MakeGuess(r.Context(), *payload)
+
+	if err != nil {
+
+		switch err {
+		case services.ErrNotYourTurn, services.ErrMatchNotStarted:
+			{
+				uc.ConflictError(w, r, err)
+			}
+		case services.ErrMatchNotFound:
+			{
+				uc.NotFoundError(w, r, err)
+			}
+		default:
+			{
+				if errors.Is(err, services.ErrInvalidCombination) {
+					uc.BadRequestError(w, r, err)
+				} else {
+
+					uc.InternalServerError(w, r, err)
+				}
+			}
+		}
+		return
+	}
+
+	if err := utils.WriteJSON(w, http.StatusOK, result); err != nil {
+		uc.InternalServerError(w, r, err)
+		return
+	}
+}
+
+func (uc *MatchesController) restartGameHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomId := vars["roomId"]
+
+	if err := validateRoomId(roomId); err != nil {
+		uc.BadRequestError(w, r, err)
+		return
+	}
+
+	result, err := uc.matchesService.RestartGame(r.Context(), roomId)
+
+	if err != nil {
+		switch err {
+		case services.ErrMatchNotFound:
+			{
+				uc.NotFoundError(w, r, err)
+			}
+		default:
+			{
+				uc.InternalServerError(w, r, err)
+			}
+		}
+		return
+	}
+
+	if err := utils.WriteJSON(w, http.StatusOK, result); err != nil {
 		uc.InternalServerError(w, r, err)
 		return
 	}
